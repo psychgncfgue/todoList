@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-import { Status } from '../utils/enums'
+import { Status } from '../utils/enums';
 
 @Entity('tasks')
 export class Task {
@@ -14,6 +14,7 @@ export class Task {
 
   @Column('jsonb', { nullable: true })
   subtasks?: object[];
+  
 
   @Column({
     type: 'enum',

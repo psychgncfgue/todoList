@@ -1,24 +1,26 @@
-import React, { useState } from 'react';
-import { useDispatch } from 'react-redux';
+import React, { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch } from '../store/store';
-import { addTodo } from '../features/todoSlice';
+import { addTodo, triggerDataRefresh } from '../features/todoSlice';
 import { TextField, Button, Typography, Container, Box, IconButton, List, ListItem, ListItemText, Alert } from '@mui/material';
 import { Add, Delete } from '@mui/icons-material';
 import axios, { AxiosError } from 'axios';
-import { Subtask } from '../types/interfaces';
+import { Subtask, Todo, ErrorResponse } from '../types/interfaces';
+import { RootState } from '../store/store';
 
-interface ErrorResponse {
-  error: string;
-}
 
 const TodoForm: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-
+  const todos = useSelector((state: RootState) => state.todos.tasks);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const validateTodo = (todo: Partial<Todo>): boolean => {
+    return !!todo.title;
+  };
 
   const handleSubmit = async () => {
     if (!title) {
@@ -26,7 +28,7 @@ const TodoForm: React.FC = () => {
       return;
     }
   
-    const todoData = {
+    const todoData: Partial<Todo> = {
       title,
       description,
       subtasks: subtasks.map(subtask => ({
@@ -34,16 +36,26 @@ const TodoForm: React.FC = () => {
         status: 'waiting'
       })),
       status: 'waiting',
+      loadedSubtasks: [], 
+      currentPage: 1,
+      totalPages: 1,
+      isExpanded: false
     };
+  
+    if (!validateTodo(todoData)) {
+      setError('Invalid data');
+      return;
+    }
   
     try {
       const response = await axios.post('http://localhost:5000/api/tasks', todoData);
-      dispatch(addTodo(response.data));
+      const newTodo = response.data as Todo;
+      dispatch(addTodo(newTodo));
+      dispatch(triggerDataRefresh());
       setTitle('');
       setDescription('');
       setSubtasks([]);
-      setError(null); 
-  
+      setError(null);
     } catch (error) {
       const axiosError = error as AxiosError<ErrorResponse>;
       if (axiosError.response?.data?.error) {
@@ -56,6 +68,7 @@ const TodoForm: React.FC = () => {
       }
     }
   };
+  
 
   const handleAddSubtask = () => {
     if (subtaskTitle) {
@@ -71,10 +84,15 @@ const TodoForm: React.FC = () => {
     setSubtasks(subtasks.filter(subtask => subtask.id !== id));
   };
 
+  useEffect(() => {
+    
+    console.log('Todos:', todos);
+  }, [todos]);
+
   return (
     <Container>
       <Box>
-        <Typography variant="h6">На  сегодня</Typography>
+        <Typography variant="h6">На сегодня</Typography>
         {error && <Alert severity="error">{error}</Alert>}
         <TextField
           label="Название"

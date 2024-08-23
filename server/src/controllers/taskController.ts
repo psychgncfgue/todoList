@@ -58,3 +58,21 @@ export const getTasks = async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Server error' });
   }
 };
+
+
+export const getSubtasks = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+
+    const subtasksData = await taskService.getSubtasks(id, page);
+    return res.status(200).json({
+      subtasks: subtasksData.subtasks, // Подзадачи для текущей страницы
+      currentPage: subtasksData.currentPage, // Текущая страница
+      totalPages: subtasksData.totalPages, // Общее количество страниц
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+};
