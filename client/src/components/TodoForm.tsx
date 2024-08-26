@@ -1,17 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import React, { useState } from 'react';
+import { useDispatch} from 'react-redux';
 import { AppDispatch } from '../store/store';
 import { addTodo, triggerDataRefresh } from '../features/todoSlice';
 import { TextField, Button, Typography, Container, Box, IconButton, List, ListItem, ListItemText, Alert } from '@mui/material';
 import { Add, Delete } from '@mui/icons-material';
 import axios, { AxiosError } from 'axios';
 import { Subtask, Todo, ErrorResponse } from '../types/interfaces';
-import { RootState } from '../store/store';
 
 
 const TodoForm: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const todos = useSelector((state: RootState) => state.todos.tasks);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
@@ -84,10 +82,10 @@ const TodoForm: React.FC = () => {
     setSubtasks(subtasks.filter(subtask => subtask.id !== id));
   };
 
-  useEffect(() => {
+  // useEffect(() => {
     
-    console.log('Todos:', todos);
-  }, [todos]);
+  //   console.log('Todos:', todos);
+  // }, [todos]);
 
   return (
     <Container>

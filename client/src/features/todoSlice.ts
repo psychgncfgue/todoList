@@ -2,7 +2,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Todo, Subtask, TodoState } from '../types/interfaces';
 
-const ITEMS_PER_PAGE = 5;
+export const ITEMS_PER_PAGE = 5;
 
 
 const initialState: TodoState = {
@@ -32,38 +32,41 @@ const todoSlice = createSlice({
         isExpanded: false
       });
     },
-
-    updateTodo(state, action: PayloadAction<Todo>) {
+    updateTodo(state, action: PayloadAction<Partial<Todo> & { id: string }>) {
       const index = state.tasks.findIndex(todo => todo.id === action.payload.id);
-
       if (index !== -1) {
-        const existingTodo = state.tasks[index];
-
-        // Обновление основной задачи
-        state.tasks[index] = {
-          ...existingTodo,
-          ...action.payload,
-          subtasksCount: action.payload.subtasks?.length || existingTodo.subtasksCount // Оставляем прежнее значение, если нет новых данных
-        };
-
-        // Обновление подзадач, если они есть
-        if (action.payload.subtasks) {
-          state.tasks[index].subtasks = action.payload.subtasks;
-
-          if (state.tasks[index].isExpanded) {
-            // Если задача развернута, обновляем подзадачи
-            state.tasks[index].loadedSubtasks = action.payload.subtasks.slice(0, ITEMS_PER_PAGE);
-            state.tasks[index].currentPage = 1;
-            state.tasks[index].totalPages = Math.ceil(action.payload.subtasks.length / ITEMS_PER_PAGE);
-          } else {
-            // Если задача свернута, очищаем загруженные подзадачи
-            state.tasks[index].loadedSubtasks = [];
-            state.tasks[index].currentPage = 1;
-            state.tasks[index].totalPages = 1;
+          const existingTodo = state.tasks[index];
+  
+          // Обновляем только те поля, которые были переданы в действии
+          state.tasks[index] = {
+              ...existingTodo,
+              ...action.payload,
+              subtasksCount: action.payload.subtasksCount !== undefined 
+                  ? action.payload.subtasksCount 
+                  : existingTodo.subtasksCount,
+              isExpanded: action.payload.isExpanded !== undefined 
+                  ? action.payload.isExpanded 
+                  : existingTodo.isExpanded
+          };
+  
+          // Если передан массив subtasks, обновляем его и связанные поля
+          if (action.payload.subtasks) {
+              state.tasks[index].subtasks = action.payload.subtasks;
+  
+              if (state.tasks[index].isExpanded) {
+                  const startIndex = (action.payload.currentPage! - 1) * ITEMS_PER_PAGE;
+                  const endIndex = startIndex + ITEMS_PER_PAGE;
+                  state.tasks[index].loadedSubtasks = action.payload.subtasks.slice(startIndex, endIndex);
+                  state.tasks[index].currentPage = action.payload.currentPage || 1;
+                  state.tasks[index].totalPages = Math.ceil(action.payload.subtasks.length / ITEMS_PER_PAGE);
+              } else {
+                  state.tasks[index].loadedSubtasks = [];
+                  state.tasks[index].currentPage = 1;
+                  state.tasks[index].totalPages = 1;
+              }
           }
-        }
       }
-    },
+  },
     
     deleteTodo(state, action: PayloadAction<string>) {
       state.tasks = state.tasks.filter(todo => todo.id !== action.payload);

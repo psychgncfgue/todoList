@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../store/store';
-import { deleteTodo, setEditingTodo, updateTodo, setTodos, completeTodo, triggerDataRefresh } from '../features/todoSlice';
+import { deleteTodo, setEditingTodo, updateTodo, setTodos, completeTodo, loadSubtasks } from '../features/todoSlice';
 import { Button, List, ListItem, ListItemText, Container, Typography, Box, Chip, ToggleButton, ToggleButtonGroup, Card, CardContent, Divider, Pagination } from '@mui/material';
 import axios from 'axios';
 import EditTodoMenu from './EditTodoMenu';
@@ -10,34 +10,52 @@ import { Todo, Subtask } from '../types/interfaces';
 const TodoList: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const todos = useSelector((state: RootState) => state.todos.tasks);
-  const needsRefresh = useSelector((state: RootState) => state.todos.needsRefresh);
   const [isEditMenuOpen, setEditMenuOpen] = useState(false);
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
   const [filter, setFilter] = useState<'all' | 'completed' | 'waiting'>('all');
 
+  const fetchAllSubtasks = async (taskId: string) => {
+    let subtasksCount = 0;
+    let currentPage = 1;
+    let totalPages = 1;
+  
+    do {
+      const response = await axios.get(`http://localhost:5000/api/tasks/${taskId}/subtasks?page=${currentPage}`);
+      subtasksCount += response.data.subtasks.length;
+      totalPages = response.data.totalPages;
+      currentPage += 1;
+    } while (currentPage <= totalPages);
+  
+    return subtasksCount;
+  };
+  
   useEffect(() => {
     const fetchTodos = async () => {
       try {
         const response = await axios.get('http://localhost:5000/api/tasks');
-        const tasksWithPagination = response.data.map((todo: Todo) => ({
-          ...todo,
-          loadedSubtasks: [], 
-          currentPage: 1,
-          totalPages: 1, 
-          isExpanded: todo.isExpanded || false,
-        }));
-        dispatch(setTodos(tasksWithPagination));
-        dispatch(triggerDataRefresh()); 
+  
+        const tasksWithPagination = response.data.map(async (todo: Todo) => {
+          const subtasksCount = await fetchAllSubtasks(todo.id);
+  
+          return {
+            ...todo,
+            loadedSubtasks: [], 
+            currentPage: 1,
+            totalPages: 1, 
+            isExpanded: todo.isExpanded || false,
+            subtasksCount: subtasksCount
+          };
+        });
+  
+        const resolvedTasks = await Promise.all(tasksWithPagination);
+        dispatch(setTodos(resolvedTasks));
       } catch (error) {
         console.error('Error fetching todos:', error);
       }
     };
-    fetchTodos();
   
-    if (needsRefresh) {
-      fetchTodos();
-    }
-  }, [dispatch, needsRefresh]);
+    fetchTodos();
+  }, [dispatch]);
 
   const handleExpand = async (todo: Todo) => {
     try {
@@ -55,7 +73,6 @@ const TodoList: React.FC = () => {
         currentPage: 1,
         totalPages: totalPages,
         isExpanded: true,
-        subtasksCount: subtasks.length
       }));
     } catch (error) {
       console.error('Error fetching subtasks:', error);
@@ -64,22 +81,25 @@ const TodoList: React.FC = () => {
 
   const handlePageChange = async (event: React.ChangeEvent<unknown>, page: number, todo: Todo) => {
     try {
-      if (todo.currentPage === page) return; 
-  
-      const response = await axios.get(`http://localhost:5000/api/tasks/${todo.id}/subtasks?page=${page}`);
-      const subtasks: Subtask[] = response.data.subtasks;
-      const totalPages: number = response.data.totalPages;
-  
-      dispatch(updateTodo({
-        ...todo,
-        loadedSubtasks: subtasks,
-        currentPage: page,
-        totalPages: totalPages,
-      }));
+        if (todo.currentPage === page) return; // Прекращаем выполнение, если страница уже активна
+
+        // Получение подзадач для выбранной страницы
+        const response = await axios.get(`http://localhost:5000/api/tasks/${todo.id}/subtasks?page=${page}`);
+        const subtasks: Subtask[] = response.data.subtasks;
+        const totalPages: number = response.data.totalPages;
+
+        // Диспатчинг действия loadSubtasks для обновления подзадач
+        dispatch(loadSubtasks({
+            id: todo.id,
+            loadedSubtasks: subtasks,
+            currentPage: page,
+            totalPages: totalPages
+        }));
+
     } catch (error) {
-      console.error('Error fetching subtasks:', error);
+        console.error('Error fetching subtasks:', error);
     }
-  };
+};
 
   const handleCollapse = (todo: Todo) => {
     dispatch(updateTodo({
@@ -114,6 +134,8 @@ const TodoList: React.FC = () => {
         const subtasks: Subtask[] = subtasksResponse.data.subtasks;
         const totalPages: number = subtasksResponse.data.totalPages;
 
+        console.log("Subtasks before dispatch:", subtasks.map(subtask => subtask.status));
+
         dispatch(updateTodo({
             ...todo,
             status: updatedTodo.status,
@@ -121,22 +143,44 @@ const TodoList: React.FC = () => {
             currentPage: currentPage,
             totalPages: totalPages,
         }));
+        dispatch(loadSubtasks({
+          id: todo.id,
+          loadedSubtasks: subtasks,
+          currentPage: todo.currentPage,
+          totalPages: totalPages,
+        }));
         dispatch(completeTodo(id));
     } catch (error) {
         console.error('Error completing todo:', error);
     }
 };
 
-  const handleCloseEditMenu = () => {
-    setEditMenuOpen(false);
-    setSelectedTodo(null);
-  };
+const handleCloseEditMenu = async () => {
+  if (selectedTodo) {
+    try {
+      const subtasksCount = await fetchAllSubtasks(selectedTodo.id);
+      dispatch(updateTodo({
+        id: selectedTodo.id,
+        subtasksCount,
+      }));
+    } catch (error) {
+      console.error('Error updating subtasks count:', error);
+    }
+  }
+
+  setEditMenuOpen(false);
+  setSelectedTodo(null);
+};
 
   const handleFilterChange = (event: React.MouseEvent<HTMLElement>, newFilter: 'all' | 'completed' | 'waiting') => {
     if (newFilter !== null) {
       setFilter(newFilter);
     }
   };
+
+  useEffect(() => {
+    console.log('Todos:', todos);
+  }, [todos]);
 
   
   const filteredTodos = todos.filter(todo => {

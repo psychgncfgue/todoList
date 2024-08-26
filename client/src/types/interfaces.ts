@@ -18,6 +18,7 @@ export interface Subtask {
     allSubtasks: string[];
   }
 
+
   export interface EditTodoMenuProps {
     open: boolean;
     onClose: () => void;
@@ -34,6 +35,7 @@ export interface Subtask {
   export interface ErrorResponse {
     error: string;
   }
+
 
   export interface TodoState {
     tasks: Todo[];

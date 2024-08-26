@@ -8,6 +8,7 @@ import { AppDispatch, RootState } from '../store/store';
 import { updateTodo, loadSubtasks } from '../features/todoSlice';
 import { Delete, ExpandMore, Add } from '@mui/icons-material';
 import { Subtask, EditTodoMenuProps } from '../types/interfaces';
+import axios from 'axios';
 
 
 const EditTodoMenu: React.FC<EditTodoMenuProps> = ({ open, onClose, todo }) => {
@@ -80,57 +81,45 @@ const EditTodoMenu: React.FC<EditTodoMenuProps> = ({ open, onClose, todo }) => {
     }
   }, [todo, dispatch, fetchSubtasks]);
 
-
   const handlePageChange = (event: React.ChangeEvent<unknown>, page: number) => {
     console.log('Page change:', page);
     setCurrentPage(page);
     fetchSubtasks(page);
   };
 
+
   const handleAddSubtask = async () => {
     if (newSubtaskTitle.trim() && todo?.id) {
       const newSubtask: Subtask = {
-        id: new Date().toISOString(),
+        id: new Date().toISOString(), // Генерация уникального ID
         title: newSubtaskTitle,
         status: 'waiting',
       };
+      
       try {
+        // Отправка POST-запроса на сервер для добавления подзадачи
         const response = await fetch(`http://localhost:5000/api/tasks/${todo.id}/subtasks`, {
-          method: 'POST',
+          method: 'POST', // Используем POST для создания новой подзадачи
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(newSubtask),
         });
-
+  
         if (response.ok) {
-          const addedSubtask = await response.json();
-          dispatch(loadSubtasks({
-            id: todo.id,
-            loadedSubtasks: [...(currentTodo?.loadedSubtasks ?? []), addedSubtask],
-            currentPage: currentPage,
-            totalPages: totalPages
-          }));
+        
+          await fetchSubtasks(currentPage);
           setNewSubtaskTitle('');
         } else {
-          console.error('Failed to add subtask:', await response.json());
+          const errorData = await response.json();
+          console.error('Failed to add subtask:', errorData);
+          setError('Failed to add subtask');
         }
       } catch (error) {
         console.error('Error adding subtask:', error);
+        setError('Error adding subtask');
       }
     }
-  };
-
-  const handleSubtaskStatusChange = (id: string, newStatus: 'waiting' | 'completed') => {
-    if (!todo) return;
-    dispatch(loadSubtasks({
-      id: todo.id,
-      loadedSubtasks: (currentTodo?.loadedSubtasks ?? []).map(subtask =>
-        subtask.id === id ? { ...subtask, status: newStatus } : subtask
-      ),
-      currentPage: currentPage,
-      totalPages: totalPages
-    }));
   };
 
   const handleEditSubtaskChange = (id: string, title: string, status: 'waiting' | 'completed') => {
@@ -141,17 +130,21 @@ const EditTodoMenu: React.FC<EditTodoMenuProps> = ({ open, onClose, todo }) => {
 
   const handleUpdateSubtask = async () => {
     if (!editSubtaskId || !todo) return;
+    
     try {
+      // Отправляем PATCH-запрос на сервер для обновления подзадачи
       const response = await fetch(`http://localhost:5000/api/tasks/${todo.id}/subtasks/${editSubtaskId}`, {
-        method: 'PUT',
+        method: 'PATCH', // Используем PATCH для частичного обновления
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ title: editSubtaskTitle, status: editSubtaskStatus }),
       });
-
+  
       if (response.ok) {
         const updatedSubtask = await response.json();
+  
+        // Обновляем состояние с новыми данными подзадачи
         dispatch(loadSubtasks({
           id: todo.id,
           loadedSubtasks: (currentTodo?.loadedSubtasks ?? []).map(subtask =>
@@ -160,6 +153,7 @@ const EditTodoMenu: React.FC<EditTodoMenuProps> = ({ open, onClose, todo }) => {
           currentPage: currentPage,
           totalPages: totalPages
         }));
+  
         setEditSubtaskId(null);
       } else {
         console.error('Failed to update subtask:', await response.json());
@@ -177,8 +171,9 @@ const EditTodoMenu: React.FC<EditTodoMenuProps> = ({ open, onClose, todo }) => {
         description: description || '',
         status,
       };
-
+  
       try {
+        // Обновляем задачу
         const response = await fetch(`http://localhost:5000/api/tasks/${todo.id}`, {
           method: 'PUT',
           headers: {
@@ -186,11 +181,31 @@ const EditTodoMenu: React.FC<EditTodoMenuProps> = ({ open, onClose, todo }) => {
           },
           body: JSON.stringify(updatedTodo),
         });
-
+  
         if (response.ok) {
-          dispatch(updateTodo({
-            ...updatedTodo,
+          // Получаем обновленную задачу
+          const updatedTask = await response.json();
+  
+          // Получаем подзадачи для текущей страницы
+          const subtasksResponse = await axios.get(`http://localhost:5000/api/tasks/${todo.id}/subtasks?page=${todo.currentPage}`);
+          const subtasks: Subtask[] = subtasksResponse.data.subtasks;
+          const totalPages: number = subtasksResponse.data.totalPages;
+  
+          // Диспатчим действие loadSubtasks для обновления подзадач
+          dispatch(loadSubtasks({
+            id: todo.id,
+            loadedSubtasks: subtasks,
+            currentPage: todo.currentPage,
+            totalPages: totalPages,
           }));
+  
+          // Диспатчим обновленную задачу
+          dispatch(updateTodo({
+            ...updatedTask,
+            currentPage: todo.currentPage,  // Обновляем текущую страницу
+            totalPages: totalPages,         // Обновляем общее количество страниц
+          }));
+  
           onClose();
         } else {
           console.error('Failed to update todo:', await response.json());
@@ -201,24 +216,50 @@ const EditTodoMenu: React.FC<EditTodoMenuProps> = ({ open, onClose, todo }) => {
     }
   };
 
-  const handleCancel = () => {
-    onClose();
-  };
-
   const handleDeleteSubtask = async (subtaskId: string) => {
     if (!todo) return;
     try {
+      // Отправка DELETE-запроса на сервер для удаления подзадачи
       const response = await fetch(`http://localhost:5000/api/tasks/${todo.id}/subtasks/${subtaskId}`, {
         method: 'DELETE',
       });
-
+  
       if (response.ok) {
-        dispatch(loadSubtasks({
-          id: todo.id,
-          loadedSubtasks: (currentTodo?.loadedSubtasks ?? []).filter(subtask => subtask.id !== subtaskId),
-          currentPage: currentPage,
-          totalPages: totalPages
-        }));
+        // Получение обновленного списка подзадач для текущей страницы
+        const updatedResponse = await fetch(`http://localhost:5000/api/tasks/${todo.id}/subtasks?page=${currentPage}`);
+        const updatedData = await updatedResponse.json();
+  
+        // Если текущая страница становится пустой, переключаемся на предыдущую
+        if (updatedData.subtasks.length === 0 && currentPage > 1) {
+          const previousPage = currentPage - 1;
+  
+          // Получаем данные для предыдущей страницы
+          const previousPageResponse = await fetch(`http://localhost:5000/api/tasks/${todo.id}/subtasks?page=${previousPage}`);
+          const previousPageData = await previousPageResponse.json();
+  
+          // Обновляем состояние с данными для предыдущей страницы
+          dispatch(loadSubtasks({
+            id: todo.id,
+            loadedSubtasks: previousPageData.subtasks,
+            currentPage: previousPage,
+            totalPages: previousPageData.totalPages
+          }));
+  
+          // Обновляем состояние текущей страницы
+          setCurrentPage(previousPage);
+          setTotalPages(previousPageData.totalPages);
+        } else {
+          // Обновляем состояние с данными для текущей страницы
+          dispatch(loadSubtasks({
+            id: todo.id,
+            loadedSubtasks: updatedData.subtasks,
+            currentPage: currentPage,
+            totalPages: updatedData.totalPages
+          }));
+  
+          // Обновляем состояние текущей страницы
+          setTotalPages(updatedData.totalPages);
+        }
       } else {
         console.error('Failed to delete subtask:', await response.json());
       }
@@ -226,6 +267,11 @@ const EditTodoMenu: React.FC<EditTodoMenuProps> = ({ open, onClose, todo }) => {
       console.error('Error deleting subtask:', error);
     }
   };
+
+  const handleCancel = () => {
+    onClose();
+  };
+
 
   return (
     <Dialog open={open} onClose={onClose}>
