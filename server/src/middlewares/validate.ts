@@ -21,15 +21,12 @@ export const validateTaskCreation = [
 
 export const validateSubtaskCreation = [
   check('title').notEmpty().withMessage('Subtask title is required'),
-  check('status')
-    .isIn([Status.WAITING, Status.COMPLETED])
-    .withMessage('Invalid subtask status'),
-
+  check('status').isIn([Status.WAITING, Status.COMPLETED]).withMessage('Invalid subtask status'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id, subtaskId } = req.params;
+      const { id } = req.params;
 
-      // Получите главную задачу из базы данных по ID
+      // Получаем главную задачу из базы данных по ID
       const taskRepository = getRepository(Task);
       const task = await taskRepository.findOne(id);
 

@@ -21,8 +21,9 @@
     "express": "^4.19.2",
     "express-validator": "^7.2.0",
     "pg": "^8.12.0",
+    "reflect-metadata": "^0.1.13",
     "typeorm": "^0.2.38",
-    "reflect-metadata": "^0.1.13"
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -30,6 +31,7 @@
     "@types/express-validator": "^3.0.0",
     "@types/node": "^22.4.2",
     "@types/pg": "^8.11.6",
+    "@types/uuid": "^10.0.0",
     "eslint": "^8.45.0",
     "eslint-config-airbnb-typescript": "^15.0.0",
     "eslint-plugin-import": "^2.26.0",

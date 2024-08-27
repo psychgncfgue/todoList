@@ -82,11 +82,6 @@ const TodoForm: React.FC = () => {
     setSubtasks(subtasks.filter(subtask => subtask.id !== id));
   };
 
-  // useEffect(() => {
-    
-  //   console.log('Todos:', todos);
-  // }, [todos]);
-
   return (
     <Container>
       <Box>
