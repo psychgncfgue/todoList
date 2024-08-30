@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { useDispatch} from 'react-redux';
+import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../store/store';
 import { addTodo, triggerDataRefresh } from '../features/todoSlice';
 import { TextField, Button, Typography, Container, Box, IconButton, List, ListItem, ListItemText, Alert } from '@mui/material';
 import { Add, Delete } from '@mui/icons-material';
 import axios, { AxiosError } from 'axios';
 import { Subtask, Todo, ErrorResponse } from '../types/interfaces';
-
 
 const TodoForm: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -25,30 +24,31 @@ const TodoForm: React.FC = () => {
       setError('Title is required');
       return;
     }
-  
+
     const todoData: Partial<Todo> = {
       title,
       description,
-      subtasks: subtasks.map(subtask => ({
-        ...subtask,
-        status: 'waiting'
-      })),
       status: 'waiting',
-      loadedSubtasks: [], 
-      currentPage: 1,
-      totalPages: 1,
-      isExpanded: false
+      isExpanded: false,
     };
-  
+
     if (!validateTodo(todoData)) {
       setError('Invalid data');
       return;
     }
-  
+
     try {
       const response = await axios.post('http://localhost:5000/api/tasks', todoData);
       const newTodo = response.data as Todo;
       dispatch(addTodo(newTodo));
+      await Promise.all(subtasks.map(subtask => {
+        const subtaskData: Partial<Todo> = {
+          ...subtask,
+          status: 'waiting',
+          parentId: newTodo.id,
+        };
+        return axios.post('http://localhost:5000/api/tasks', subtaskData);
+      }));
       dispatch(triggerDataRefresh());
       setTitle('');
       setDescription('');
@@ -66,7 +66,6 @@ const TodoForm: React.FC = () => {
       }
     }
   };
-  
 
   const handleAddSubtask = () => {
     if (subtaskTitle) {

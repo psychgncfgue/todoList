@@ -15,8 +15,11 @@ export class Task {
   @OneToMany(() => Task, task => task.parent, { cascade: true })
   subtasks?: Task[];
 
-  @ManyToOne(() => Task, task => task.subtasks, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Task, task => task.subtasks, { onDelete: 'CASCADE', nullable: true })
   parent?: Task;
+
+  @Column({ nullable: true })
+  parentId?: string;
 
   @Column({
     type: 'enum',
