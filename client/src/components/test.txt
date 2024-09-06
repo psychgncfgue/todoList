@@ -1,0 +1,136 @@
+{
+  todos: {
+    tasks: [
+      {
+        id: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+        title: 'выскочить',
+        description: 'седня',
+        parentId: null,
+        status: 'completed',
+        isExpanded: true,
+        currentPage: 1,
+        totalPages: 2,
+        subtasksCount: 13,
+        subtasks: [
+          {
+            id: '9742a1a6-44b8-47c5-bb7f-f6638712bb71',
+            title: '5',
+            description: null,
+            parentId: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+            status: 'completed'
+          },
+          {
+            id: 'b3dc19af-21f1-43a0-9046-9a605deed9d6',
+            title: '1',
+            description: null,
+            parentId: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+            status: 'completed'
+          },
+          {
+            id: 'adede475-b341-481f-8588-bb676907f1fe',
+            title: '2',
+            description: null,
+            parentId: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+            status: 'completed'
+          },
+          {
+            id: '142277ad-3f7e-4313-b251-85980e09bbb5',
+            title: '3',
+            description: null,
+            parentId: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+            status: 'completed'
+          },
+          {
+            id: 'a39ca817-9a7c-4df7-a6ae-84f950554077',
+            title: '4',
+            description: null,
+            parentId: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+            status: 'completed'
+          }
+        ]
+      }
+    ],
+    editingTodo: null,
+    needsRefresh: false
+  }
+}
+
+
+
+
+
+{
+  todos: {
+    tasks: [
+      {
+        id: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+        title: 'выскочить',
+        description: 'седня',
+        parentId: null,
+        status: 'completed',
+        isExpanded: true,
+        currentPage: 1,
+        totalPages: 2,
+        subtasksCount: 13,
+        subtasks: [
+          {
+            id: '9742a1a6-44b8-47c5-bb7f-f6638712bb71',
+            title: '5',
+            description: null,
+            parentId: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+            status: 'completed',
+            isExpanded: true,
+            currentPage,
+            totalPages,
+            subtasksCount,
+            subtasks: [
+              {
+                id: '',
+                title: '',
+                description,
+                parentId: '',
+                status: '',
+              }
+            ]
+          },
+          {
+            id: 'b3dc19af-21f1-43a0-9046-9a605deed9d6',
+            title: '1',
+            description: null,
+            parentId: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+            status: 'completed'
+          },
+          {
+            id: 'adede475-b341-481f-8588-bb676907f1fe',
+            title: '2',
+            description: null,
+            parentId: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+            status: 'completed'
+          },
+          {
+            id: '142277ad-3f7e-4313-b251-85980e09bbb5',
+            title: '3',
+            description: null,
+            parentId: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+            status: 'completed'
+          },
+          {
+            id: 'a39ca817-9a7c-4df7-a6ae-84f950554077',
+            title: '4',
+            description: null,
+            parentId: 'c2a2aec7-846f-4766-8bfc-14af94c3d9c9',
+            status: 'completed'
+          }
+        ]
+      }
+    ],
+    editingTodo: null,
+    needsRefresh: false
+  }
+}
+
+
+
+
+
+

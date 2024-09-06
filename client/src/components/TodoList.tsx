@@ -2,83 +2,57 @@ import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../store/store';
 import { deleteTodo, setEditingTodo, updateTodo, setTodos, completeTodo } from '../features/todoSlice';
-import { Button, List, ListItem, ListItemText, Container, Typography, Box, Chip, ToggleButton, ToggleButtonGroup, Card, CardContent, Divider, Pagination } from '@mui/material';
+import { Button, List, Container, Typography, Box, Chip, ToggleButton, ToggleButtonGroup, Card, CardContent, Divider, Pagination } from '@mui/material';
 import axios from 'axios';
 import EditTodoMenu from './EditTodoMenu';
 import { Todo } from '../types/interfaces';
 
-const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
+const fetchAllSubtasks = async (parentId: string): Promise<number> => {
+  let subtasksCount = 0;
+  let currentPage = 1;
+  let totalPages = 1;
+  do {
+    const response = await axios.get(
+      `http://localhost:5000/api/tasks?parentId=${parentId}&page=${currentPage}&limit=5&includeSubtasks=true`
+    );
+    const tasks = response.data.tasks;
+    if (tasks && Array.isArray(tasks)) {
+      subtasksCount += tasks.length;
+      for (const subtask of tasks) {
+        subtasksCount += await fetchAllSubtasks(subtask.id);
+      }
+    }
+    totalPages = response.data.totalPages;
+    currentPage += 1;
+  } while (currentPage <= totalPages);
+  return subtasksCount;
+};
+
+const TodoItem: React.FC<{ todo: Todo; depth?: number }> = ({ todo, depth = 0 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const todos = useSelector((state: RootState) => state.todos.tasks);
   const [isEditMenuOpen, setEditMenuOpen] = useState(false);
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
 
-  const fetchAllSubtasks = async (parentId: string): Promise<number> => {
-    let subtasksCount = 0;
-    let currentPage = 1;
-    let totalPages = 1;
-    do {
-      const response = await axios.get(
-        `http://localhost:5000/api/tasks?parentId=${parentId}&page=${currentPage}&limit=5&includeSubtasks=true`
-      );
-      const tasks = response.data.tasks;
-      if (tasks && Array.isArray(tasks)) {
-        subtasksCount += tasks.length;
-        for (const subtask of tasks) {
-          subtasksCount += await fetchAllSubtasks(subtask.id);
-        }
-      }
-      totalPages = response.data.totalPages;
-      currentPage += 1;
-    } while (currentPage <= totalPages);
-
-    return subtasksCount;
+  const getBackgroundColor = (depth: number) => {
+    const baseColor = 255;
+    const step = 15; 
+    const colorValue = Math.max(baseColor - depth * step, 200);
+    return `rgb(${colorValue}, ${colorValue}, ${colorValue})`;
   };
 
-  const updateSubtasksRecursively = async (todos: Todo[]) => {
-    for (const todo of todos) {
-      // Обновляем состояние для текущей задачи
-      dispatch(updateTodo({
-        ...todo,
-        id: todo.id,
-        isExpanded: false, // Изначально подзадачи свернуты
-        subtasks: [], // Очистить подзадачи
-        loadedSubtasks: [], // Очистить загруженные подзадачи
-      }));
-  
-      // Запрашиваем подзадачи для текущей задачи
-      try {
-        const response = await axios.get(`http://localhost:5000/api/tasks?parentId=${todo.id}&page=1&limit=5&includeSubtasks=true`);
-        const { tasks } = response.data.tasks;
-  
-        if (Array.isArray(tasks)) {
-          await updateSubtasksRecursively(tasks);
-        }
-      } catch (error) {
-        console.error(`Error fetching subtasks for ${todo.id}:`, error);
-      }
-    }
-  };
 
-  const handleExpand = async () => {
+  const handleExpand = async (event: React.MouseEvent, taskId: string) => {
+    event.preventDefault();
     try {
-      // Запрашиваем подзадачи для основной задачи
-      const response = await axios.get(`http://localhost:5000/api/tasks?parentId=${todo.id}&page=1&limit=5&includeSubtasks=false`);
-      const { totalPages, currentPage } = response.data;
-      const tasks = response.data.tasks;
-  
-      if (!Array.isArray(tasks)) {
-        throw new Error('Tasks is not an array');
-      }
-  
-      // Получаем подзадачи для основной задачи
+      const response = await axios.get(`http://localhost:5000/api/tasks?parentId=${taskId}&page=1&limit=5&includeSubtasks=false`);
+      console.log(response.data);
+      const { totalPages, currentPage, tasks } = response.data;
       const tasksWithSubtaskCounts = await Promise.all(
-        tasks.map(async (subtask: Todo) => {
-          const subtasksCount = await fetchAllSubtasks(subtask.id);
-          console.log('Expanding subtask:', subtask.id);
+        tasks.map(async (todo: Todo) => {
+          const subtasksCount = await fetchAllSubtasks(todo.id);
           return {
-            ...subtask,
-            id: subtask.id,
+            ...todo,
             isExpanded: false,
             currentPage: 1,
             totalPages: 1,
@@ -86,21 +60,15 @@ const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
           };
         })
       );
-  
-      // Обновляем состояние основной задачи
+      const parentTask = todo; 
       dispatch(updateTodo({
-        ...todo,
-        id: todo.id,
-        subtasks: tasksWithSubtaskCounts,
-        loadedSubtasks: tasksWithSubtaskCounts,
-        currentPage,
-        totalPages,
-        isExpanded: true
+        id: taskId,
+        isExpanded: true,
+        subtasks: tasksWithSubtaskCounts,  
+        currentPage: currentPage,
+        totalPages: totalPages,
+        subtasksCount: parentTask.subtasksCount 
       }));
-  
-      // Рекурсивно обновляем состояние для подзадач
-      await updateSubtasksRecursively(tasksWithSubtaskCounts);
-  
     } catch (error) {
       console.error('Error fetching subtasks:', error);
     }
@@ -108,28 +76,45 @@ const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
 
   const handlePageChange = async (page: number) => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/tasks?parentId=${todo.id}&page=${page}&limit=5&includeSubtasks=true`);
-      const subtasks: Todo[] = response.data.tasks;
-      const totalPages: number = response.data.totalPages;
-      dispatch(updateTodo({
-        ...todo,
-        loadedSubtasks: subtasks,
-        currentPage: page,
-        totalPages: totalPages
-      }));
+        const response = await axios.get(`http://localhost:5000/api/tasks?parentId=${todo.id}&page=${page}&limit=5&includeSubtasks=false`);
+        const subtasks: Todo[] = response.data.tasks;
+        const totalPages: number = response.data.totalPages;
+        const tasksWithSubtaskCounts = await Promise.all(
+          subtasks.map(async (todo: Todo) => {
+            const subtasksCount = await fetchAllSubtasks(todo.id);
+            return {
+              ...todo,
+              isExpanded: false,
+              currentPage: 1,
+              totalPages: 1,
+              subtasksCount
+            };
+          })
+        );
+        const parentTask = todo; 
+        dispatch(updateTodo({
+            id: todo.id,
+            subtasks: tasksWithSubtaskCounts,
+            isExpanded: true,
+            currentPage: page,
+            totalPages: totalPages,
+            subtasksCount: parentTask.subtasksCount 
+        }));
     } catch (error) {
-      console.error('Error fetching subtasks:', error);
+        console.error('Error fetching subtasks:', error);
     }
-  };
+};
 
-  const handleCollapse = () => {
-    dispatch(updateTodo({
-      ...todo,
-      loadedSubtasks: [],
+const handleCollapse = () => {
+  dispatch(updateTodo({
+      id: todo.id,
+      subtasks: [],  
       currentPage: 1,
-      isExpanded: false
-    }));
-  };
+      totalPages: todo.totalPages,
+      isExpanded: false,
+      subtasksCount: todo.subtasksCount  
+  }));
+};
 
   const handleEdit = (todo: Todo) => {
     dispatch(setEditingTodo(todo));
@@ -140,11 +125,30 @@ const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
   const handleCloseEditMenu = async () => {
     if (selectedTodo) {
       try {
-        const subtasksCount = await fetchAllSubtasks(selectedTodo.id);
-        dispatch(updateTodo({
-          id: selectedTodo.id,
-          subtasksCount,
-        }));
+        const { currentPage = 1 } = selectedTodo;
+        const response = await axios.get(`http://localhost:5000/api/tasks?parentId=${selectedTodo.id}&page=${currentPage}&limit=5&includeSubtasks=false`);
+        const subtasks: Todo[] = response.data.tasks;
+        const totalPages: number = response.data.totalPages;
+
+        const tasksWithSubtaskCounts = await Promise.all(
+          subtasks.map(async (subtask: Todo) => {
+            const subtasksCount = await fetchAllSubtasks(subtask.id);
+            return {
+              ...subtask,
+              subtasksCount,
+            };
+          })
+        );
+
+        const updatedTodo = {
+          ...selectedTodo,
+          subtasksCount: await fetchAllSubtasks(selectedTodo.id),
+          subtasks: tasksWithSubtaskCounts,
+          currentPage,
+          totalPages,
+        };
+
+        dispatch(updateTodo(updatedTodo));
       } catch (error) {
         console.error('Error updating subtasks count:', error);
       }
@@ -153,31 +157,36 @@ const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
     setSelectedTodo(null);
   };
 
-  const handleComplete = async (id: string, currentPage: number, todo: Todo) => {
+  const handleComplete = async (id: string) => {
     try {
-      const completeResponse = await axios.patch(`http://localhost:5000/api/tasks/${id}/complete`, {
-        status: 'completed'
-      });
+      const completeResponse = await axios.patch(`http://localhost:5000/api/tasks/${id}/complete`, { status: 'completed' });
       if (completeResponse.status === 200) {
-        const subtasksResponse = await axios.get(`http://localhost:5000/api/tasks`, {
-          params: {
-            parentId: id,
-            page: currentPage,
-            limit: 5,
-            includeSubtasks: false
-          }
-        });
+        const subtasksResponse = await axios.get(`http://localhost:5000/api/tasks?parentId=${id}&page=1&limit=5&includeSubtasks=false`);
         if (subtasksResponse.status === 200) {
-          const { currentPage, totalPages } = subtasksResponse.data;
-          const tasks = subtasksResponse.data.tasks;
+          const { currentPage, totalPages, tasks } = subtasksResponse.data;
           if (Array.isArray(tasks)) {
+            const tasksWithSubtaskCounts = await Promise.all(
+              tasks.map(async (todo: Todo) => {
+                const subtasksCount = await fetchAllSubtasks(todo.id);
+                return {
+                  ...todo,
+                  isExpanded: false,
+                  currentPage: 1,
+                  totalPages: 1,
+                  subtasksCount
+                };
+              })
+            );
+            const parentTask = todo; 
             const updatedSubtasks = tasks.map(subtask => ({ ...subtask, status: 'completed' }));
             dispatch(updateTodo({
-              ...todo,
+              id,
               status: 'completed',
-              loadedSubtasks: updatedSubtasks,
-              currentPage: currentPage,
-              totalPages: totalPages,
+              subtasks: updatedSubtasks,
+              currentPage,
+              totalPages,
+              subtasksCount: parentTask.subtasksCount,
+              isExpanded: todo.isExpanded
             }));
             dispatch(completeTodo(id));
           } else {
@@ -198,13 +207,35 @@ const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
     try {
       await axios.delete(`http://localhost:5000/api/tasks/${id}`);
       dispatch(deleteTodo(id));
+      if (selectedTodo) {
+        const { currentPage = 1 } = selectedTodo;
+        const response = await axios.get(`http://localhost:5000/api/tasks?parentId=${selectedTodo.id}&page=${currentPage}&limit=5&includeSubtasks=false`);
+        const subtasks: Todo[] = response.data.tasks;
+        const totalPages: number = response.data.totalPages;
+        const tasksWithSubtaskCounts = await Promise.all(
+          subtasks.map(async (subtask: Todo) => {
+            const subtasksCount = await fetchAllSubtasks(subtask.id);
+            return {
+              ...subtask,
+              subtasksCount,
+            };
+          })
+        );
+        const updatedTodo = {
+          ...selectedTodo,
+          subtasks: tasksWithSubtaskCounts,
+          currentPage,
+          totalPages,
+        };
+        dispatch(updateTodo(updatedTodo));
+      }
     } catch (error) {
       console.error('Error deleting todo:', error);
     }
   };
 
   return (
-    <Card sx={{ marginBottom: '1rem', borderRadius: '8px', boxShadow: 3 }}>
+    <Card sx={{ marginBottom: '1rem', borderRadius: '8px', boxShadow: 3, backgroundColor: getBackgroundColor(depth) }}>
       <CardContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -216,7 +247,7 @@ const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
           <Typography variant="body1" sx={{ boxShadow: 1, padding: '0.5rem' }}>
             {todo.description}
           </Typography>
-          <Box sx={{ marginY: '1rem' }}>
+          <Box sx={{ marginY: '0rem' }}>
             {todo.subtasksCount && todo.subtasksCount > 0 ? (
               <Typography variant="subtitle2">
                 {todo.isExpanded ? `${todo.subtasksCount} подзадач` : `Подзадачи: ${todo.subtasksCount}`}
@@ -230,8 +261,8 @@ const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
             <>
               <Typography variant="subtitle1" sx={{ marginBottom: '0rem' }}>Подзадачи:</Typography>
               <List>
-                {(todo.loadedSubtasks || []).map((subtask: Todo) => (
-                  <TodoItem key={subtask.id} todo={subtask} />
+                {(todo.subtasks || []).map((subtask: Todo) => (
+                  <TodoItem key={subtask.id} todo={subtask} depth={depth + 1} />
                 ))}
               </List>
               {todo.totalPages && todo.totalPages > 1 && (
@@ -244,9 +275,9 @@ const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
               )}
             </>
           )}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
-            {todo.subtasksCount && todo.subtasksCount > 0 && !todo.isExpanded && (
-              <Button onClick={handleExpand} variant="contained" color="primary">
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0rem' }}>
+            {!todo.isExpanded && (
+              <Button onClick={(event) => handleExpand(event, todo.id)} variant="contained" color="primary">
                 Развернуть
               </Button>
             )}
@@ -259,7 +290,7 @@ const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
               Править
             </Button>
             {todo.status !== 'completed' && (
-              <Button onClick={() => todo.currentPage !== undefined && handleComplete(todo.id, todo.currentPage, todo)} variant="contained" color="success">
+              <Button onClick={() => handleComplete(todo.id)} variant="contained" color="success">
                 Выполнить
               </Button>
             )}
@@ -271,6 +302,7 @@ const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
       </CardContent>
       {isEditMenuOpen && selectedTodo && (
         <EditTodoMenu
+          fetchAllSubtasks={fetchAllSubtasks}
           open={isEditMenuOpen}
           onClose={handleCloseEditMenu}
           todo={selectedTodo}
@@ -280,33 +312,12 @@ const TodoItem: React.FC<{ todo: Todo }> = ({ todo }) => {
   );
 };
 
+
 const TodoList: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const todos = useSelector((state: RootState) => state.todos.tasks);
   const needsRefresh = useSelector((state: RootState) => state.todos.needsRefresh);
   const [filter, setFilter] = useState<'all' | 'completed' | 'waiting'>('all');
-
-  const fetchAllSubtasks = async (parentId: string): Promise<number> => {
-    let subtasksCount = 0;
-    let currentPage = 1;
-    let totalPages = 1;
-    do {
-      const response = await axios.get(
-        `http://localhost:5000/api/tasks?parentId=${parentId}&page=${currentPage}&limit=5&includeSubtasks=true`
-      );
-      const tasks = response.data.tasks;
-      if (tasks && Array.isArray(tasks)) {
-        subtasksCount += tasks.length;
-        for (const subtask of tasks) {
-          subtasksCount += await fetchAllSubtasks(subtask.id);
-        }
-      }
-      totalPages = response.data.totalPages;
-      currentPage += 1;
-    } while (currentPage <= totalPages);
-
-    return subtasksCount;
-  };
 
   useEffect(() => {
     const fetchTodos = async () => {

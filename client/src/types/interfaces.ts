@@ -31,6 +31,7 @@ export interface Subtask {
     open: boolean;
     onClose: () => void;
     todo: Todo | null;
+    fetchAllSubtasks: (parentId: string) => Promise<number>;
   }
 
   export interface LoadSubtasksPayload {
@@ -56,3 +57,8 @@ export interface Subtask {
     currentPage: number;
     totalPages: number;
   }
+
+  export type PayloadAction<T> = {
+    type: string;
+    payload: T;
+  };
