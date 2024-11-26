@@ -52,8 +52,8 @@ export const getTasks = async (req: Request, res: Response) => {
     const pageNum = parseInt(page as string, 10) || 1;
     const limitNum = parseInt(limit as string, 10) || 5;
 
-    const parentIdParsed = parentId === 'undefined' || parentId === 'null' || !parentId 
-      ? null 
+    const parentIdParsed = parentId === 'undefined' || parentId === 'null' || !parentId
+      ? null
       : (parentId as string);
 
     const includeSubtasksFlag = includeSubtasks === 'true';

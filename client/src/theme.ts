@@ -1,6 +1,5 @@
 import { createTheme } from '@mui/material/styles';
 
-// Создайте и экспортируйте свою тему здесь
 const theme = createTheme({
   palette: {
     primary: {
