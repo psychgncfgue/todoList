@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Todo, TodoPagination } from '../types/interfaces';
-import { addSubtaskToTree, collapseNestedTask, deleteSubtaskFromTree, updateNestedTask, updateNestedTaskPagination, updateSubtasksCount, updateTodoWithChildren, updateTodoWithTitleAndDescription } from '../utils/todoHelpers';
+import { addSubtaskToTree, collapseNestedTask, deleteSubtaskFromTree, updateNestedTask, updateNestedTaskPagination, updateSubtasksCount, updateTodoWithChildren, updateTodoWithTitleAndDescription, updateMainTasksPagination, deleteTaskFromMainArray, addTodoToMainList } from '../utils/todoHelpers';
 
 interface TodoState {
   tasks: TodoPagination;
@@ -48,13 +48,35 @@ const todoSlice = createSlice({
     addTodoSuccess(state, action: PayloadAction<Todo & { totalOnLastPage?: number }>) {
       const newTodo = action.payload;
       const { totalOnLastPage = 0 } = newTodo;
+      const { tasks, pagination } = state.tasks;
       if (!newTodo.parentId) {
-        state.tasks.tasks.push(newTodo);
+        const { tasks: updatedTasks, pagination: updatedPagination } = addTodoToMainList(
+          tasks,
+          newTodo,
+          pagination,
+          totalOnLastPage
+        );
+        return {
+          ...state,
+          tasks: {
+            ...state.tasks,
+            tasks: updatedTasks,
+            pagination: updatedPagination,
+          },
+          loading: false,
+        };
       } else {
-        state.tasks.tasks = addSubtaskToTree(state.tasks.tasks, newTodo, totalOnLastPage);
-        state.tasks.tasks = updateSubtasksCount(state.tasks.tasks, newTodo.parentId, true);
+        const updatedTasks = addSubtaskToTree(state.tasks.tasks, newTodo, totalOnLastPage);
+        const tasksWithUpdatedSubtasksCount = updateSubtasksCount(updatedTasks, newTodo.parentId, true);
+        return {
+          ...state,
+          tasks: {
+            ...state.tasks,
+            tasks: tasksWithUpdatedSubtasksCount,
+          },
+          loading: false,
+        };
       }
-      state.loading = false;
     },
     addTodoFailure(state, action: PayloadAction<string>) {
       state.loading = false;
@@ -67,21 +89,23 @@ const todoSlice = createSlice({
       state,
       action: PayloadAction<{
         id: string;
-        updatedPageData?: { tasks: Todo[]; total: number; totalPages: number; currentPage: number; parentId: string };
-        subtasksCount?: number,
+        updatedPageData?: { tasks: Todo[]; total: number; totalPages: number; currentPage: number; parentId?: string };
+        subtasksCount?: number;
       }>
     ) {
       state.loading = false;
       const { id, updatedPageData, subtasksCount } = action.payload;
       const parentId = updatedPageData?.parentId;
-      state.tasks.tasks = deleteSubtaskFromTree(
-        state.tasks.tasks,
-        id,
-        updatedPageData ?? { tasks: [], total: 0, totalPages: 1, currentPage: 1 }
-      );
       if (parentId) {
+        state.tasks.tasks = deleteSubtaskFromTree(
+          state.tasks.tasks,
+          id,
+          updatedPageData ?? { tasks: [], total: 0, totalPages: 1, currentPage: 1 }
+        );
         state.tasks.tasks = updateSubtasksCount(state.tasks.tasks, parentId, false, subtasksCount);
-    }
+      } else {
+        state.tasks = deleteTaskFromMainArray(state.tasks, id, updatedPageData);
+      }
     },
     deleteTodoFailure(state, action: PayloadAction<string>) {
       state.loading = false;
@@ -126,18 +150,23 @@ const todoSlice = createSlice({
     },
     pageChangeRequestSuccess(
       state,
-      action: PayloadAction<{ parentId: string; todos: Todo[]; page: number; totalPages: number; total: number }>
+      action: PayloadAction<{ parentId?: string; todos: Todo[]; page: number; totalPages: number; total: number }>
     ) {
       state.loading = false;
       const { parentId, todos, page, totalPages, total } = action.payload;
-      state.tasks.tasks = updateNestedTaskPagination(
-        state.tasks.tasks,
-        parentId,
-        todos,
-        page,
-        totalPages,
-        total
-      );
+    
+      if (parentId !== undefined) {
+        state.tasks.tasks = updateNestedTaskPagination(
+          state.tasks.tasks,
+          parentId,
+          todos,
+          page,
+          totalPages,
+          total
+        );
+      } else {
+        state.tasks = updateMainTasksPagination(state.tasks, todos, page, totalPages, total);
+      }
     },
     pageChangeRequestFailure(state, action: PayloadAction<string>) {
       state.loading = false;

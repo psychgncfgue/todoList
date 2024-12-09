@@ -27,7 +27,7 @@ export const expandTodo = (id: string) => ({
     payload: id,
 });
 
-export const pageChangeTodo = (parentId: string, page: number) => ({
+export const pageChangeTodo = (page: number, parentId?: string) => ({
     type: 'PAGE_CHANGE_TODO',
     payload: { parentId, page },
 });

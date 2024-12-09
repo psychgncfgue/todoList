@@ -22,7 +22,6 @@ const TodoForm: React.FC = () => {
       description,
       status: 'waiting',
     };
-  
     dispatch(addTodo(newTodo));
     setTitle('');
     setDescription('');

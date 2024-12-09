@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { validationResult, check } from 'express-validator';
 import { Status } from '../utils/enums';
 import { Task } from '../models/taskModel';
-import { getRepository } from 'typeorm';
+import dataSource from '../config/database';
 
 export const validateTaskAndSubtasks = [
   check('title').notEmpty().withMessage('Title is required'),
@@ -20,8 +20,10 @@ export const validateTaskAndSubtasks = [
       }
       const { parentId } = req.body;
       if (parentId) {
-        const taskRepository = getRepository(Task);
-        const parentTask = await taskRepository.findOne(parentId);
+        const taskRepository = dataSource.getRepository(Task);
+        const parentTask = await taskRepository.findOne({
+          where: { id: parentId } // Указаны условия для поиска задачи по ID
+        });
 
         if (!parentTask) {
           return res.status(404).json({ error: 'Parent task not found' });

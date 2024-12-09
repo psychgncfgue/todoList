@@ -1,17 +1,32 @@
-import { Container, Typography, List } from "@mui/material";
-import { useEffect } from "react";
+import { Container, Typography, List, Pagination } from "@mui/material";
+import { useCallback, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchTodos } from "../actions/actions";
+import { fetchTodos, pageChangeTodo } from "../actions/actions";
 import { AppDispatch, RootState } from "../store/store";
 import TodoItem from './TodoItem';
 
 const TodoList: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const { tasks, pagination } = useSelector((state: RootState) => state.todos.tasks);
 
   useEffect(() => {
     dispatch(fetchTodos());
   }, [dispatch]);
-  const { tasks } = useSelector((state: RootState) => state.todos.tasks);
+
+  const handlePageChangeMain = useCallback((page: number) => {
+    dispatch(pageChangeTodo(page));
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (
+      Array.isArray(tasks) &&
+      tasks.length === 0 &&
+      pagination.currentPage > 1 &&
+      pagination.currentPage > pagination.totalPages
+    ) {
+      handlePageChangeMain(pagination.currentPage - 1);
+    }
+  }, [tasks, pagination, handlePageChangeMain]);
 
   return (
     <Container>
@@ -28,6 +43,14 @@ const TodoList: React.FC = () => {
             Нет задач
           </Typography>
         )}
+        {pagination.totalPages > 1 && (
+                <Pagination
+                  count={pagination.totalPages}
+                  page={pagination.currentPage}
+                  onChange={(event, page) => handlePageChangeMain(page)}
+                  sx={{ marginTop: '1rem', alignSelf: 'center' }}
+                />
+              )}
       </List>
     </Container>
   );

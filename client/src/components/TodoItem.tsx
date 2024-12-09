@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../store/store';
 import { Button, List, Typography, Box, Chip, Card, CardContent, Divider, Pagination } from '@mui/material';
@@ -27,9 +27,26 @@ const TodoItem: React.FC<TodoItemProps> = ({ todo, depth = 0 }) => {
     dispatch(collapseTodo(todo.id));
   };
 
-  const handlePageChange = (parentId: string, page: number) => {
-    dispatch(pageChangeTodo(parentId, page));
-  };
+  const handlePageChange = useCallback((page: number, parentId?: string) => {
+    dispatch(pageChangeTodo(page, parentId));
+  }, [dispatch]);
+  
+  useEffect(() => {
+    if (
+      todo.expandedSubtasks &&
+      Array.isArray(todo.expandedSubtasks.tasks) &&
+      todo.expandedSubtasks.tasks.length === 0 &&
+      todo.expandedSubtasks.pagination.currentPage > todo.expandedSubtasks.pagination.totalPages
+    ) {
+      handlePageChange(todo.expandedSubtasks.pagination.currentPage - 1, todo.id);
+    }
+  }, [
+    todo.expandedSubtasks,
+    todo.expandedSubtasks?.pagination.currentPage,
+    todo.expandedSubtasks?.pagination.totalPages,
+    handlePageChange,
+    todo.id
+  ]);
 
   const handleEdit = (todo: Todo) => {
     setEditMenuOpen(true);
@@ -79,14 +96,20 @@ const TodoItem: React.FC<TodoItemProps> = ({ todo, depth = 0 }) => {
                 <Pagination
                   count={todo.expandedSubtasks.pagination.totalPages}
                   page={todo.expandedSubtasks.pagination.currentPage}
-                  onChange={(event, page) => handlePageChange(todo.id, page)}
+                  onChange={(event, page) => {
+                    if (todo.id !== undefined) {
+                        handlePageChange(page, todo.id);
+                    } else {
+                        console.warn('todo.id is undefined');
+                    }
+                }}
                   sx={{ marginTop: '1rem', alignSelf: 'center' }}
                 />
               )}
             </>
           )}
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0rem' }}>
-            {!todo.isExpanded && (
+            {(!todo.isExpanded && todo.subtasksCount !== undefined && todo.subtasksCount > 0) && (
               <Button onClick={handleExpand} variant="contained" color="primary">
                 Развернуть
               </Button>

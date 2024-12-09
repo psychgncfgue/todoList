@@ -37,37 +37,45 @@ function* addTodo(action: { type: string; payload: { todo: NewTodo } }): SagaIte
     yield put(addTodoRequest());
     const { todo } = action.payload;
     try {
-        const response: AxiosResponse<Todo> = yield call(() =>
-            axios.post('http://localhost:5000/api/tasks', todo)
-        );
-        const newTodo = response.data;
-        const state: RootState = yield select();
+      const response: AxiosResponse<Todo> = yield call(() =>
+        axios.post('http://localhost:5000/api/tasks', todo)
+      );
+      const newTodo = response.data;
+      const state: RootState = yield select();
+      let totalOnLastPage = 0;
+      if (newTodo.parentId) {
         const parentTask = findParentTask(state.todos.tasks.tasks, newTodo.parentId);
-        console.log(parentTask);
-        let totalOnLastPage = 0;
         if (parentTask?.isExpanded) {
-            const pagination = parentTask.expandedSubtasks?.pagination;
-            console.log(pagination);
-            if (pagination) {
-                const lastPage = pagination.totalPages;
-                const lastPageResponse: AxiosResponse<{ tasks: Todo[]; total: number }> = yield call(() =>
-                    axios.get(
-                        `http://localhost:5000/api/tasks?parentId=${newTodo.parentId}&page=${lastPage}&limit=5&includeSubtasks=false`
-                    )
-                );
-                totalOnLastPage = lastPageResponse.data.total;
-            }
+          const pagination = parentTask.expandedSubtasks?.pagination;
+          if (pagination) {
+            const lastPage = pagination.totalPages;
+            const lastPageResponse: AxiosResponse<{ tasks: Todo[]; total: number }> = yield call(() =>
+              axios.get(
+                `http://localhost:5000/api/tasks?parentId=${newTodo.parentId}&page=${lastPage}&limit=5&includeSubtasks=false`
+              )
+            );
+            totalOnLastPage = lastPageResponse.data.total;
+          }
         }
-        yield put(
-            addTodoSuccess({
-                ...newTodo,
-                totalOnLastPage,
-            })
+      } else {
+        const lastPage = state.todos.tasks.pagination.totalPages;
+        const lastPageResponse: AxiosResponse<{ tasks: Todo[]; total: number }> = yield call(() =>
+          axios.get(
+            `http://localhost:5000/api/tasks?parentId=null&page=${lastPage}&limit=5&includeSubtasks=false`
+          )
         );
+        totalOnLastPage = lastPageResponse.data.total;
+      }
+      yield put(
+        addTodoSuccess({
+          ...newTodo,
+          totalOnLastPage,
+        })
+      );
     } catch (error) {
-        yield put(addTodoFailure('Не удалось добавить задачу'));
+      yield put(addTodoFailure('Не удалось добавить задачу'));
     }
-}
+  }
 
 function* deleteTodo(action: { type: string; payload: { id: string, deletedTodo: Todo } }): SagaIterator {
     yield put(deleteTodoRequest());
@@ -76,12 +84,9 @@ function* deleteTodo(action: { type: string; payload: { id: string, deletedTodo:
     try {
         yield call(() => axios.delete(`http://localhost:5000/api/tasks/${id}`));
         const state: RootState = yield select();
-        const parentTask = findParentTask(state.todos.tasks.tasks, deletedTodo?.parentId);
-        console.log(parentTask);
-        let updatedPageData: { tasks: Todo[]; total: number; totalPages: number; currentPage: number; parentId: string } | undefined = undefined;
-        if (parentTask?.isExpanded) {
-            const pagination = parentTask.expandedSubtasks?.pagination;
-            console.log(pagination)
+        let updatedPageData: { tasks: Todo[]; total: number; totalPages: number; currentPage: number; parentId?: string } | undefined = undefined;
+        if (deletedTodo.parentId === null) {
+            const pagination = state.todos.tasks.pagination;
             if (pagination) {
                 const currentPage = pagination.currentPage;
                 const currentPageResponse: AxiosResponse<{
@@ -90,7 +95,7 @@ function* deleteTodo(action: { type: string; payload: { id: string, deletedTodo:
                     totalPages: number;
                 }> = yield call(() =>
                     axios.get(
-                        `http://localhost:5000/api/tasks?parentId=${parentTask.id}&page=${currentPage}&limit=5&includeSubtasks=false`
+                        `http://localhost:5000/api/tasks?parentId=null&page=${currentPage}&limit=5&includeSubtasks=false`
                     )
                 );
                 updatedPageData = {
@@ -98,8 +103,31 @@ function* deleteTodo(action: { type: string; payload: { id: string, deletedTodo:
                     total: currentPageResponse.data.total,
                     totalPages: currentPageResponse.data.totalPages,
                     currentPage,
-                    parentId: parentTask.id,
                 };
+            }
+        } else {
+            const parentTask = findParentTask(state.todos.tasks.tasks, deletedTodo.parentId);
+            if (parentTask?.isExpanded) {
+                const pagination = parentTask.expandedSubtasks?.pagination;
+                if (pagination) {
+                    const currentPage = pagination.currentPage;
+                    const currentPageResponse: AxiosResponse<{
+                        tasks: Todo[];
+                        total: number;
+                        totalPages: number;
+                    }> = yield call(() =>
+                        axios.get(
+                            `http://localhost:5000/api/tasks?parentId=${parentTask.id}&page=${currentPage}&limit=5&includeSubtasks=false`
+                        )
+                    );
+                    updatedPageData = {
+                        tasks: currentPageResponse.data.tasks,
+                        total: currentPageResponse.data.total,
+                        totalPages: currentPageResponse.data.totalPages,
+                        currentPage,
+                        parentId: parentTask.id,
+                    };
+                }
             }
         }
         yield put(deleteTodoSuccess({ id, updatedPageData, subtasksCount }));
@@ -123,7 +151,7 @@ function* completeTodo(action: { type: string; payload: { id: string } }) {
     }
 }
 
-function* pageChange(action: { type: string; payload: { parentId: string; page: number } }) {
+function* pageChange(action: { type: string; payload: { parentId?: string; page: number } }) {
     yield put(pageChangeRequest())
     const { parentId, page } = action.payload;
     try {
@@ -178,7 +206,6 @@ function* editTodo(action: { type: string; payload: Todo }) {
         const response: AxiosResponse<Todo> = yield call(() =>
             axios.put(`http://localhost:5000/api/tasks/${todo.id}`, todo)
         );
-        console.log(response.data)
         yield put(editTodoSuccess(response.data));
     } catch (error) {
         yield put(editTodoFailure('Не удалось изменить задачу'));

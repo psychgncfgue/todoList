@@ -1,24 +1,28 @@
-import { getRepository } from 'typeorm';
+import { FindOptionsWhere } from 'typeorm';
 import { Task } from '../models/taskModel';
 import { Status } from '../utils/enums';
+import dataSource from '../config/database';
 
 export const createTask = async (taskData: Partial<Task>, parentId?: string) => {
-  const taskRepository = getRepository(Task);
+  const taskRepository = dataSource.getRepository(Task);
   const task = taskRepository.create(taskData);
-  
+
   if (parentId) {
-    const parentTask = await taskRepository.findOne(parentId);
+    const parentTask = await taskRepository.findOne({ where: { id: parentId }, relations: ['subtasks'] });
     if (parentTask) {
       task.parent = parentTask;
+      task.parentId = parentTask.id;
+    } else {
+      throw new Error('Parent task not found'); 
     }
   }
-  
+
   return await taskRepository.save(task);
 };
 
 export const deleteTask = async (id: string) => {
-  const taskRepository = getRepository(Task);
-  const task = await taskRepository.findOne(id, { relations: ['subtasks'] });
+  const taskRepository = dataSource.getRepository(Task);
+  const task = await taskRepository.findOne({ where: { id }, relations: ['subtasks'] });
   if (!task) {
     throw new Error('Task not found');
   }
@@ -30,9 +34,9 @@ export const deleteTask = async (id: string) => {
 };
 
 export const updateTask = async (id: string, updateData: Partial<Task>) => {
-  const taskRepository = getRepository(Task);
-  const loadTaskWithSubtasks = async (taskId: string): Promise<Task> => {
-    const task = await taskRepository.findOne(taskId, { relations: ['subtasks'] });
+  const taskRepository = dataSource.getRepository(Task);
+  const loadTaskWithSubtasks = async (id: string): Promise<Task> => {
+    const task = await taskRepository.findOne({ where: { id }, relations: ['subtasks'] });
     if (!task) {
       throw new Error('Task not found');
     }
@@ -68,9 +72,9 @@ export const updateTask = async (id: string, updateData: Partial<Task>) => {
 };
 
 export const completeTask = async (id: string) => {
-  const taskRepository = getRepository(Task);
+  const taskRepository = dataSource.getRepository(Task);
   const loadTaskWithSubtasks = async (taskId: string): Promise<Task> => {
-    const task = await taskRepository.findOne(taskId, { relations: ['subtasks'] });
+    const task = await taskRepository.findOne({ where: { id },  relations: ['subtasks'] });
     if (!task) {
       throw new Error('Task not found');
     }
@@ -95,8 +99,8 @@ export const completeTask = async (id: string) => {
 };
 
 export const getTasks = async (parentId: string | null, page = 1, limit = 5, includeSubtasks = false) => {
-  const taskRepository = getRepository(Task);
-  const whereClause = parentId ? { parentId } : { parentId: null };
+  const taskRepository = dataSource.getRepository(Task);
+  const whereClause: FindOptionsWhere<Task> = parentId ? { parentId } : { parentId: undefined };
   console.log(`Fetching tasks with parentId=${parentId}, page=${page}, limit=${limit}, includeSubtasks=${includeSubtasks}`);
   const [tasks, total] = await taskRepository.findAndCount({
     where: whereClause,
@@ -123,7 +127,7 @@ export const getTasks = async (parentId: string | null, page = 1, limit = 5, inc
 };
 
 const getSubtasksCount = async (taskId: string): Promise<number> => {
-  const taskRepository = getRepository(Task);
+  const taskRepository = dataSource.getRepository(Task);
   const subtasks = await taskRepository.find({ where: { parentId: taskId } });
   if (subtasks.length === 0) {
     return 0;
